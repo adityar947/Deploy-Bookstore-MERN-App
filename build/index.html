@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bookstore SPA</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: #f4f6f8;
+      color: #333;
+    }
+    header {
+      background: #0077cc;
+      color: white;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+      font-weight: 700;
+    }
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      background: white;
+      padding: 1.5rem 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
+    }
+    button {
+      background: #0077cc;
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:disabled {
+      background: #bbb;
+      cursor: not-allowed;
+    }
+    input, select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      width: 100%;
+      margin-bottom: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    label {
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      display: block;
+    }
+    form {
+      max-width: 400px;
+      margin-bottom: 2rem;
+    }
+    ul.book-list {
+      list-style: none;
+      padding: 0;
+    }
+    ul.book-list li {
+      border-bottom: 1px solid #eee;
+      padding: 1rem 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    ul.book-list li:last-child {
+      border-bottom: none;
+    }
+    .book-info {
+      flex: 1;
+    }
+    .book-actions button {
+      margin-left: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .error {
+      color: #c0392b;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+    .success {
+      color: #27ae60;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+    nav button {
+      margin-left: 0.5rem;
+      background: transparent;
+      color: white;
+      border: 1px solid white;
+      padding: 0.3rem 0.7rem;
+      border-radius: 3px;
+    }
+    nav button:hover {
+      background: white;
+      color: #0077cc;
+    }
+    @media (max-width: 600px) {
+      main {
+        margin: 1rem;
+        padding: 1rem;
+      }
+      ul.book-list li {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .book-actions {
+        margin-top: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Bookstore</h1>
+    <nav id="nav-auth">
+      <button id="btn-show-login">Login</button>
+      <button id="btn-show-signup">Signup</button>
+    </nav>
+    <nav id="nav-logged-in" class="hidden">
+      <span id="user-email"></span>
+      <button id="btn-logout">Logout</button>
+    </nav>
+  </header>
+  <main>
+    <!-- Messages -->
+    <div id="message" role="alert"></div>
+
+    <!-- Auth Forms -->
+    <section id="auth-section">
+      <form id="form-login" class="hidden" aria-label="Login form">
+        <h2>Login</h2>
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" required />
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" required />
+        <button type="submit">Login</button>
+      </form>
+
+      <form id="form-signup" class="hidden" aria-label="Signup form">
+        <h2>Signup</h2>
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" required />
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" required />
+        <button type="submit">Signup</button>
+      </form>
+    </section>
+
+    <!-- Book Section -->
+    <section id="books-section" class="hidden" aria-live="polite">
+      <h2>Books</h2>
+
+      <label for="search-author">Search by author</label>
+      <input type="text" id="search-author" placeholder="Author name..." />
+
+      <ul class="book-list" id="book-list"></ul>
+
+      <form id="form-add-book" aria-label="Add new book form" class="hidden">
+        <h3>Add New Book</h3>
+        <label for="add-title">Title</label>
+        <input type="text" id="add-title" required />
+        <label for="add-author">Author</label>
+        <input type="text" id="add-author" required />
+        <button type="submit">Add Book</button>
+      </form>
+    </section>
+
+    <!-- Edit Book Modal (hidden by default) -->
+    <dialog id="edit-book-dialog" aria-modal="true" aria-labelledby="edit-book-title">
+      <form method="dialog" id="form-edit-book">
+        <h3 id="edit-book-title">Edit Book</h3>
+        <input type="hidden" id="edit-id" />
+        <label for="edit-title">Title</label>
+        <input type="text" id="edit-title" required />
+        <label for="edit-author">Author</label>
+        <input type="text" id="edit-author" required />
+        <menu>
+          <button id="cancel-edit" type="reset">Cancel</button>
+          <button type="submit">Save</button>
+        </menu>
+      </form>
+    </dialog>
+  </main>
+
+  <script>
+    const API_BASE = "https://backend-express-iohh.onrender.com";
+
+    const navAuth = document.getElementById("nav-auth");
+    const navLoggedIn = document.getElementById("nav-logged-in");
+    const userEmailSpan = document.getElementById("user-email");
+
+    const btnShowLogin = document.getElementById("btn-show-login");
+    const btnShowSignup = document.getElementById("btn-show-signup");
+    const btnLogout = document.getElementById("btn-logout");
+
+    const formLogin = document.getElementById("form-login");
+    const formSignup = document.getElementById("form-signup");
+    const authSection = document.getElementById("auth-section");
+
+    const booksSection = document.getElementById("books-section");
+    const bookList = document.getElementById("book-list");
+    const searchAuthor = document.getElementById("search-author");
+
+    const formAddBook = document.getElementById("form-add-book");
+
+    const messageEl = document.getElementById("message");
+
+    const editDialog = document.getElementById("edit-book-dialog");
+    const formEditBook = document.getElementById("form-edit-book");
+    const editId = document.getElementById("edit-id");
+    const editTitle = document.getElementById("edit-title");
+    const editAuthor = document.getElementById("edit-author");
+
+    // Helpers for showing messages
+    function showMessage(text, type = "error") {
+      messageEl.textContent = text;
+      messageEl.className = type;
+      if (text) {
+        setTimeout(() => {
+          messageEl.textContent = "";
+          messageEl.className = "";
+        }, 4000);
+      }
+    }
+
+    // JWT helpers
+    function getToken() {
+      return localStorage.getItem("token");
+    }
+    function setToken(token) {
+      localStorage.setItem("token", token);
+    }
+    function clearToken() {
+      localStorage.removeItem("token");
+    }
+
+    // Show/hide auth forms
+    function showLoginForm() {
+      formLogin.classList.remove("hidden");
+      formSignup.classList.add("hidden");
+      booksSection.classList.add("hidden");
+      authSection.classList.remove("hidden");
+      showMessage("");
+    }
+    function showSignupForm() {
+      formSignup.classList.remove("hidden");
+      formLogin.classList.add("hidden");
+      booksSection.classList.add("hidden");
+      authSection.classList.remove("hidden");
+      showMessage("");
+    }
+    function showBooksSection() {
+      authSection.classList.add("hidden");
+      booksSection.classList.remove("hidden");
+      showMessage("");
+    }
+
+    // Update nav UI on login state
+    function updateNavUI() {
+      const token = getToken();
+      if (token) {
+        // Decode email from token? We'll store email separately after login/signup
+        // For simplicity, store email in localStorage
+        const email = localStorage.getItem("email") || "User";
+        userEmailSpan.textContent = email;
+        navAuth.classList.add("hidden");
+        navLoggedIn.classList.remove("hidden");
+        formAddBook.classList.remove("hidden");
+        showBooksSection();
+      } else {
+        navAuth.classList.remove("hidden");
+        navLoggedIn.classList.add("hidden");
+        formAddBook.classList.add("hidden");
+        showLoginForm();
+      }
+    }
+
+    // API helpers
+    async function apiFetch(path, options = {}) {
+      const token = getToken();
+      if (token) {
+        options.headers = {
+          ...options.headers,
+          "Authorization": `Bearer ${token}`,
+        };
+      }
+      const res = await fetch(API_BASE + path, options);
+      if (!res.ok) {
+        let errorText;
+        try {
+          const data = await res.json();
+          errorText = data.error || data.message || res.statusText;
+        } catch {
+          errorText = res.statusText;
+        }
+        throw new Error(errorText);
+      }
+      return res.json();
+    }
+
+    // Load books from API (optionally with search)
+    async function loadBooks(search = "") {
+      try {
+        let books;
+        if (search) {
+          const params = new URLSearchParams({ author: search });
+          books = await apiFetch("/search?" + params.toString());
+        } else {
+          books = await apiFetch("/books");
+        }
+        renderBookList(books);
+      } catch (e) {
+        showMessage("Failed to load books: " + e.message);
+      }
+    }
+
+    // Render book list UI
+    function renderBookList(books) {
+      bookList.innerHTML = "";
+      if (books.length === 0) {
+        bookList.innerHTML = "<li>No books found.</li>";
+        return;
+      }
+      const token = getToken();
+
+      books.forEach(book => {
+        const li = document.createElement("li");
+        li.className = "book-item";
+
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "book-info";
+        infoDiv.textContent = `"${book.title}" by ${book.author}`;
+
+        li.appendChild(infoDiv);
+
+        if (token) {
+          // Show edit/delete buttons
+          const actionsDiv = document.createElement("div");
+          actionsDiv.className = "book-actions";
+
+          const editBtn = document.createElement("button");
+          editBtn.textContent = "Edit";
+          editBtn.addEventListener("click", () => openEditDialog(book));
+          actionsDiv.appendChild(editBtn);
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.addEventListener("click", () => deleteBook(book._id));
+          actionsDiv.appendChild(deleteBtn);
+
+          li.appendChild(actionsDiv);
+        }
+
+        bookList.appendChild(li);
+      });
+    }
+
+    // Add new book handler
+    formAddBook.addEventListener("submit", async e => {
+      e.preventDefault();
+      const title = document.getElementById("add-title").value.trim();
+      const author = document.getElementById("add-author").value.trim();
+
+      if (!title || !author) {
+        showMessage("Title and author are required");
+        return;
+      }
+
+      try {
+        await apiFetch("/books", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, author }),
+        });
+        showMessage("Book added", "success");
+        formAddBook.reset();
+        loadBooks(searchAuthor.value.trim());
+      } catch (e) {
+        showMessage("Failed to add book: " + e.message);
+      }
+    });
+
+    // Delete book
+    async function deleteBook(id) {
+      if (!confirm("Are you sure you want to delete this book?")) return;
+      try {
+        await apiFetch(`/books/${id}`, { method: "DELETE" });
+        showMessage("Book deleted", "success");
+        loadBooks(searchAuthor.value.trim());
+      } catch (e) {
+        showMessage("Failed to delete book: " + e.message);
+      }
+    }
+
+    // Open edit dialog
+    function openEditDialog(book) {
+      editId.value = book._id;
+      editTitle.value = book.title;
+      editAuthor.value = book.author;
+      editDialog.showModal();
+    }
+
+    // Edit book submit
+    formEditBook.addEventListener("submit", async e => {
+      e.preventDefault();
+      const id = editId.value;
+      const title = editTitle.value.trim();
+      const author = editAuthor.value.trim();
+
+      if (!title || !author) {
+        showMessage("Title and author are required");
+        return;
+      }
+
+      try {
+        await apiFetch(`/books/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, author }),
+        });
+        showMessage("Book updated", "success");
+        editDialog.close();
+        loadBooks(searchAuthor.value.trim());
+      } catch (e) {
+        showMessage("Failed to update book: " + e.message);
+      }
+    });
+
+    // Cancel edit
+    document.getElementById("cancel-edit").addEventListener("click", () => {
+      editDialog.close();
+    });
+
+    // Search input handler (debounced)
+    let searchTimeout;
+    searchAuthor.addEventListener("input", () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadBooks(searchAuthor.value.trim());
+      }, 500);
+    });
+
+    // Login form submit
+    formLogin.addEventListener("submit", async e => {
+      e.preventDefault();
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+
+      if (!email || !password) {
+        showMessage("Email and password required");
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data || res.statusText);
+        }
+        const data = await res.json();
+        setToken(data.token);
+        localStorage.setItem("email", email);
+        showMessage("Logged in", "success");
+        updateNavUI();
+        loadBooks();
+      } catch (e) {
+        showMessage("Login failed: " + e.message);
+      }
+    });
+
+    // Signup form submit
+    formSignup.addEventListener("submit", async e => {
+      e.preventDefault();
+      const email = document.getElementById("signup-email").value.trim();
+      const password = document.getElementById("signup-password").value;
+
+      if (!email || !password) {
+        showMessage("Email and password required");
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || res.statusText);
+        }
+        showMessage("Signup successful. Please login.", "success");
+        formSignup.reset();
+        showLoginForm();
+      } catch (e) {
+        showMessage("Signup failed: " + e.message);
+      }
+    });
+
+    // Logout
+    btnLogout.addEventListener("click", () => {
+      clearToken();
+      localStorage.removeItem("email");
+      updateNavUI();
+      loadBooks();
+    });
+
+    // Show login/signup buttons
+    btnShowLogin.addEventListener("click", showLoginForm);
+    btnShowSignup.addEventListener("click", showSignupForm);
+
+    // Initial setup
+    updateNavUI();
+    loadBooks();
+  </script>
+</body>
+</html>
