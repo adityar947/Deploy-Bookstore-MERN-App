@@ -199,7 +199,17 @@
   </main>
 
   <script>
-    const API_BASE = "https://backend-express-iohh.onrender.com";
+    let API_BASE = '';
+
+    fetch('/config.json')
+      .then(res => res.json())
+      .then(config => {
+        API_BASE = config.API_BASE;
+        initApp();
+      })
+      .catch(() => {
+        console.error('Failed to load config');
+      });
 
     const navAuth = document.getElementById("nav-auth");
     const navLoggedIn = document.getElementById("nav-logged-in");
